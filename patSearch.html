@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Touchworks Order Search</title>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bulma CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.13/dist/vue.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-9">
+          <br /><br />
+          <h1>Touchworks Order Search: </h1>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-7">
+          <div id="vue-app">
+            <div id="results" v-if="results" >
+              <table class="table" v-if="results && results.length" style="padding: 3px 0px 0px 0px;">
+                <th>Name</th>
+                <th>TW MRN</th>
+                <th>Gender</th>
+                <th>Date of Birth</th>
+                <th>SSN</th>
+                <tr v-for="result in results">
+                  <td><a href="#" v-on:click="getPatient(result.ID, $event)"
+                      data-toggle="modal" data-target="#details">{{result.lastname}}, {{result.firstname}}</a></td>
+                  <td>{{result.MRN}}</td>
+                  <td>{{result.gender}}</td>
+                  <td>{{result.dateofbirth}}</td>
+                  <td>{{result.ssn}}</td>
+                </tr>
+              </table>
+            </div>
+            <hr v-if="results" />
+            <div v-if="token_received">
+              <div class="form-group">
+                <label for="patSearchString">Patient To Search For:</label>
+                <input id="patSearchString" class="form-control" type="text"
+                v-model="searchString" placeholder="Search for Patient"
+                aria-describedby="searchHelp"/>
+                <small id="searchHelp" class="form-text text-muted">Try forming with
+                  lastname, firstname, date of birth<br />
+                  <em>Examples:</em>
+                <ul class="list-unstyled">
+                  <li>Smith</li>
+                  <li>Smith, Will</li>
+                  <li>Smith, Jo 12/12/1978</li>
+                </ul></small>
+              </div>
+              <button id="search" class="btn btn-primary" v-on:click="patientSearch">Search</button>
+            </div>
+            <br />
+            <div id="errors" v-if="errors">
+              <p class="alert alert-danger">{{ errors }}</p>
+            </div>
+            <div id="details" class="modal fade" tabindex="-1" role="dialog">
+                  <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Patient Details</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"
+                                v-on:click="closeModal">
+                          <span aria-hidden="true">&times;</span>
+                        </button>
+                      </div>
+                      <div class="modal-body">
+                        <h6>{{details.LastName}}, {{details.Firstname}} {{details.middlename}}</h6>
+                        <p>
+                          <ul class="list-unstyled">
+                            <li><strong>Date of Birth: </strong>{{details.dateofbirth}}</li>
+                            <li><strong>TW MRN: </strong>{{details.mrn}}</li>
+                            <li><strong>SSN: </strong>{{details.ssn}}</li>
+                            <li><strong>Gender: </strong>{{details.gender}}</li>
+                            <li><a href="#" v-on:click="getClinicalSummary(details.ID, $event)">View Raw JSON</a></li>
+                          </ul>
+                        </p>
+                        <hr />
+                        <h6 v-if="orders">Orders for {{details.mrn}}</h6>
+                        <table class="table"  v-if="orders && orders.length">
+                          <th>Encounter ID</th>
+                          <th>Order Number</th>
+                          <th>Orderable</th>
+                          <th>Order Type</th>
+                          <th>Order Status</th>
+                          <th>order Date</th>
+                          <tr v-for="order in orders">
+                            <td>{{order.EncounterID}}</td>
+                            <td>{{order.ordernumber}}</td>
+                            <td>{{order.orderable}}</td>
+                            <td>{{order.ordertype}}</td>
+                            <td>{{order.orderstatus}}</td>
+                            <td>{{order.ordercreated}}</td>
+                          </tr>
+                        </table>
+                        <h6 v-show="noOrders">No orders found for those statuses and/or types</h6>
+                        <hr/>
+                        <div class="row">
+                          <div class="col-md-6">
+                            <!-- Types -->
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="L" id="Lab" v-model="types">
+                              <label class="form-check-label" for="Lab">
+                                Lab
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="X" id="Rad" v-model="types">
+                              <label class="form-check-label" for="Rad">
+                                Radiology
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="U" id="FollowUp" v-model="types">
+                              <label class="form-check-label" for="FollowUp">
+                                Follow-up
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="R" id="Referral" v-model="types">
+                              <label class="form-check-label" for="Referral">
+                                Referral
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="D" id="Diagnostic" v-model="types">
+                              <label class="form-check-label" for="Diagnostic">
+                                Diagnostic
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="I" id="Instruction" v-model="types">
+                              <label class="form-check-label" for="Instruction">
+                                Instruction
+                              </label>
+                            </div>
+                            <small id="typeHelpBlock" class="form-text text-muted">
+                              Select a type. Selecting none will return all types
+                            </small><br />
+                          </div>
+                          <!-- Statuses -->
+                          <div class="col-md-6 text-right">
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="active" id="Active" v-model="statuses">
+                              <label class="form-check-label" for="Active">
+                                Active
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="complete" id="Complete" v-model="statuses">
+                              <label class="form-check-label" for="Completed">
+                                Complete
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="resulted" id="Resulted" v-model="statuses">
+                              <label class="form-check-label" for="Resulted">
+                                Resulted
+                              </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                              <input class="form-check-input" type="checkbox" value="canceled" id="Canceled" v-model="statuses">
+                              <label class="form-check-label" for="Canceled">
+                                Canceled
+                              </label>
+                            </div>
+                            <small id="statusHelpBlock" class="form-text text-muted">
+                              Select a status. Selecting none will return all statuses
+                            </small><br />
+                            <hr />
+
+                            <h6 v-if="raw">Raw JSON from GetClinicalSummary:</h6>
+                            <p v-if="raw">{{ this.raw }}</p>
+                          </div>
+                        </div>
+
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" v-on:click="getPatientOrders(details.ID, $event)">Get Orders</button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal" v-on:click="closeModal">Close</button>
+                      </div>
+                    </div>
+
+                </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="patSearch.js"></script>
+  </body>
+</html>
